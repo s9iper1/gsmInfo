@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Gsm Info</string>
+    <string name="done">Listening successfully completed, time to send the results.</string>
+</resources>
