@@ -6,6 +6,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
@@ -38,8 +39,36 @@ public class Helpers {
 
     public static String getTimeStamp() {
         Calendar calendar = Calendar.getInstance(TimeZone.getDefault());
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
         simpleDateFormat.setTimeZone(TimeZone.getDefault());
         return simpleDateFormat.format(calendar.getTime());
+    }
+
+    public static String get(Context context, String key) {
+        String ret;
+
+        try {
+            ClassLoader cl = context.getClassLoader();
+            @SuppressWarnings("rawtypes")
+            Class SystemProperties = cl.loadClass("android.os.SystemProperties");
+
+            //Parameters Types
+            @SuppressWarnings("rawtypes")
+            Class[] paramTypes= new Class[1];
+            paramTypes[0]= String.class;
+
+            Method get = SystemProperties.getMethod("get", paramTypes);
+
+            //Parameters
+            Object[] params = new Object[1];
+            params[0] = new String(key);
+
+            ret = (String) get.invoke(SystemProperties, params);
+        } catch(Exception e) {
+            ret = "";
+            //TODO : Error handling
+        }
+
+        return ret;
     }
 }

@@ -16,27 +16,29 @@ public final class ReflectionUtils {
     public static final String dumpClass(Class<?> mClass, Object mInstance) {
         if (mClass == null || mInstance == null) return null;
 
-        String mStr = mClass.getSimpleName() + ":";
+        String mStr = "";
 
 
         final Field[] mFields = mClass.getDeclaredFields();
 
         for (final Field mField : mFields) {
             mField.setAccessible(true);
-
-//			mStr += mField.getName() + " (" + mField.getType() + ") = ";
-
             try {
-                if (!mField.get(mInstance).toString().isEmpty() &&!mField.get(mInstance).toString().contains("@")) {
+                if (!mField.get(mInstance).toString().isEmpty() && !mField.get(mInstance)
+                        .toString().contains("@") && !mField.get(mInstance).
+                        toString().contains("SignalStrength") &&  !mField.get(mInstance).toString().contains("GsmCellLocation")) {
+//                    mStr += mField.getName() +  " ";
                     mStr += mField.get(mInstance).toString();
+                    mStr += ",";
                 }
             } catch (Exception e) {
                 mStr += "null";
+                mStr += ",";
                 Log.e(TAG, "Could not get Field `" + mField.getName() + "`.", e);
             }
-
-            mStr += ", ";
         }
+
+        System.out.println("methods part");
 
         mStr += "";
 
@@ -46,21 +48,21 @@ public final class ReflectionUtils {
 
         for (final Method mMethod : mMethods) {
             mMethod.setAccessible(true);
-
-//			mStr += mMethod.getReturnType() + " " + mMethod.getName() + "() = ";
-
             try {
                 final Object mRet = mMethod.invoke(mInstance);
                 if (!mMethod.invoke(mInstance).toString().isEmpty() &&
-                        !mMethod.invoke(mInstance).toString().contains("@")) {
+                        !mMethod.invoke(mInstance).toString().contains("@") &&
+                        !mMethod.invoke(mInstance).toString().contains("SignalStrength") &&
+                        !mMethod.invoke(mInstance).toString().contains("GsmCellLocation")) {
+//                    mStr +=  mMethod.getName() + " ";
                     mStr += (mRet == null) ? "null" : mMethod.invoke(mInstance).toString();
+                    mStr += ",";
                 }
             } catch (Exception e) {
                 mStr += "null";
+                mStr += ",";
                 Log.e(TAG, "Could not get Method `" + mMethod.getName() + "`.", e);
             }
-
-            mStr += ", ";
         }
 
         return mStr;

@@ -15,9 +15,7 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.widget.Toast;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
@@ -33,7 +31,7 @@ public class NetworkService extends Service {
     private String mTextStr = "";
     private TelephonyManager mManager;
     private final String SPACE = " ";
-    private final String UNDERSCORE = "_";
+    private final String COMMA = ",";
     private static NetworkService sInstance;
 
     public static NetworkService getInstance() {
@@ -96,22 +94,14 @@ public class NetworkService extends Service {
 
     // AsyncTask to avoid an ANR.
     private class ReflectionTask extends AsyncTask<Void, Void, Void> {
+
         protected Void doInBackground(Void... mVoid) {
-            String imsiNumber = "";
             TelephonyManager telephonyManager = (TelephonyManager)getSystemService(Context.TELEPHONY_SERVICE);
             String imei =  telephonyManager.getDeviceId();
-            Process ifc = null;
-            try {
-                ifc = Runtime.getRuntime().exec("getprop ro.hardware");
-                BufferedReader bis = new BufferedReader(new InputStreamReader(ifc.getInputStream()));
-                imsiNumber = bis.readLine();
-            } catch (java.io.IOException e) {
-            }
-            ifc.destroy();
-            mTextStr = AppGlobals.SCHEDULE +UNDERSCORE + mManager.getNetworkOperatorName() + UNDERSCORE + imsiNumber+
-                    UNDERSCORE + imei + UNDERSCORE + Helpers.getTimeStamp()
-                    + UNDERSCORE + ReflectionUtils.dumpClass(SignalStrength.class,
-                    mSignalStrength) + UNDERSCORE +
+            mTextStr = AppGlobals.SCHEDULE + COMMA + telephonyManager.getSubscriberId()+
+                    COMMA + imei + COMMA + telephonyManager.getSimSerialNumber() +COMMA + Helpers.getTimeStamp()
+                    + COMMA + mManager.getNetworkOperatorName()+ COMMA + ReflectionUtils.dumpClass(SignalStrength.class,
+                    mSignalStrength) +
                     ReflectionUtils.dumpClass(mCellLocation.getClass(), mCellLocation) + SPACE
                     + getWimaxDump();
             Log.i("TAG" , mTextStr);
