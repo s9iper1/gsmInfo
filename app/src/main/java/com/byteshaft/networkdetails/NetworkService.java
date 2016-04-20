@@ -7,6 +7,7 @@ import android.content.IntentFilter;
 import android.os.AsyncTask;
 import android.os.IBinder;
 import android.telecom.TelecomManager;
+import android.telephony.CellInfo;
 import android.telephony.CellLocation;
 import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
@@ -21,6 +22,10 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class NetworkService extends Service {
 
@@ -33,6 +38,7 @@ public class NetworkService extends Service {
     private final String SPACE = " ";
     private final String COMMA = ",";
     private static NetworkService sInstance;
+    private AlarmHelpers alarmHelpers;
 
     public static NetworkService getInstance() {
         return sInstance;
@@ -41,6 +47,8 @@ public class NetworkService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         sInstance = this;
+        alarmHelpers = new AlarmHelpers();
+        sendBroadcast(new Intent("com.byteshaft.gsmDetails"));
         mManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         DropReceiver dropReceiver = new DropReceiver();
         IntentFilter intentFilter = new IntentFilter();
@@ -64,8 +72,15 @@ public class NetworkService extends Service {
         boolean process = false;
 
         @Override
+        public void onCellInfoChanged(List<CellInfo> cellInfo) {
+            super.onCellInfoChanged(cellInfo);
+            System.out.println(Arrays.toString(cellInfo.toArray()));
+        }
+
+        @Override
         public void onServiceStateChanged(ServiceState serviceState) {
             super.onServiceStateChanged(serviceState);
+            System.out.println(serviceState.toString());
         }
 
         @Override
@@ -98,7 +113,7 @@ public class NetworkService extends Service {
         protected Void doInBackground(Void... mVoid) {
             TelephonyManager telephonyManager = (TelephonyManager)getSystemService(Context.TELEPHONY_SERVICE);
             String imei =  telephonyManager.getDeviceId();
-            mTextStr = AppGlobals.SCHEDULE + COMMA + telephonyManager.getSubscriberId()+
+            mTextStr = AppGlobals.CURRENT_STATE + COMMA + telephonyManager.getSubscriberId()+
                     COMMA + imei + COMMA + telephonyManager.getSimSerialNumber() +COMMA + Helpers.getTimeStamp()
                     + COMMA + mManager.getNetworkOperatorName()+ COMMA + ReflectionUtils.dumpClass(SignalStrength.class,
                     mSignalStrength) +
@@ -121,9 +136,16 @@ public class NetworkService extends Service {
         try {
             // Stop listening.
             mManager.listen(mListener, PhoneStateListener.LISTEN_NONE);
-            mManager.listen(mListener, PhoneStateListener.LISTEN_SERVICE_STATE);
             Toast.makeText(getApplicationContext(), R.string.done, Toast.LENGTH_SHORT).show();
-            new UploadDataTask().execute();
+            String date = Helpers.getTimeStamp();
+            Helpers.saveGsmDetails(date, mTextStr);
+            Set<String> set = new HashSet<>();
+            set.add(date);
+            Helpers.saveHashSet(set);
+            if (AppGlobals.SCHEDULE_STATE) {
+                    new UploadDataTask().execute();
+
+            }
 
         } catch (Exception e) {
             Log.e(TAG, "ERROR!!!", e);
@@ -190,11 +212,18 @@ public class NetworkService extends Service {
                     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                     connection.setRequestProperty("Content-Type", "application/json");
                     connection.setRequestMethod("POST");
-                    String jsonFormattedData = getJsonObjectString(mTextStr);
-                    Log.i("TAG" , jsonFormattedData);
-                    sendRequestData(connection, jsonFormattedData);
+                    Set<String> strings = Helpers.getHashSet();
+                    for (String singleGsm: strings) {
+                        String gsmData = Helpers.getGsmDetails(singleGsm);
+                        String jsonFormattedData = getJsonObjectString(gsmData);
+                        Log.i("TAG" , jsonFormattedData);
+                        sendRequestData(connection, jsonFormattedData);
+                        strings.remove(singleGsm);
+                    }
+                    Helpers.saveHashSet(strings);
                     response = connection.getResponseCode();
                     Log.i("TAG", connection.getResponseMessage());
+                    connection.disconnect();
                 } catch (MalformedURLException e) {
                     e.printStackTrace();
                 } catch (ProtocolException e) {
@@ -218,6 +247,7 @@ public class NetworkService extends Service {
                 Toast.makeText(getApplicationContext(), "error with code " + integer,
                         Toast.LENGTH_SHORT).show();
             }
+            alarmHelpers.setAlarmForDetails();
         }
     }
 

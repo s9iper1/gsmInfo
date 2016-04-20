@@ -6,7 +6,13 @@ import android.content.Context;
 public class AppGlobals  extends Application {
 
     private static Context sContext;
-    public static final String SCHEDULE  = "SCHEDULED";
+    public static String CURRENT_STATE = "";
+    public static String schedule = "SCHEDULED";
+    public static String call_dropped = "CALL_DROPPED";
+    public static String suspend = "DATA_SUSPEND";
+    public static final String KEY = "hash_set";
+    public static boolean SCHEDULE_STATE = false;
+
     @Override
     public void onCreate() {
         super.onCreate();

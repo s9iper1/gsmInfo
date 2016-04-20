@@ -39,7 +39,6 @@ public final class ReflectionUtils {
         }
 
         System.out.println("methods part");
-
         mStr += "";
 
         // Dump all methods.

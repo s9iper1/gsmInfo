@@ -29,6 +29,18 @@
             </intent-filter>
         </activity>
         <service android:name=".NetworkService" android:enabled="true"/>
+        <receiver android:name=".DropReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".GsmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.byteshaft.gsmDetails"/>
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
