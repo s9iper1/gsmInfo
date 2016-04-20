@@ -27,7 +27,7 @@ public final class ReflectionUtils {
 //			mStr += mField.getName() + " (" + mField.getType() + ") = ";
 
             try {
-                if (!mField.get(mInstance).toString().contains("@")) {
+                if (!mField.get(mInstance).toString().isEmpty() &&!mField.get(mInstance).toString().contains("@")) {
                     mStr += mField.get(mInstance).toString();
                 }
             } catch (Exception e) {
@@ -51,7 +51,8 @@ public final class ReflectionUtils {
 
             try {
                 final Object mRet = mMethod.invoke(mInstance);
-                if (!mMethod.invoke(mInstance).toString().contains("@")) {
+                if (!mMethod.invoke(mInstance).toString().isEmpty() &&
+                        !mMethod.invoke(mInstance).toString().contains("@")) {
                     mStr += (mRet == null) ? "null" : mMethod.invoke(mInstance).toString();
                 }
             } catch (Exception e) {

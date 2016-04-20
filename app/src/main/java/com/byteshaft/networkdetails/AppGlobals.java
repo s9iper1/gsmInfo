@@ -6,6 +6,7 @@ import android.content.Context;
 public class AppGlobals  extends Application {
 
     private static Context sContext;
+    public static final String SCHEDULE  = "SCHEDULED";
     @Override
     public void onCreate() {
         super.onCreate();
