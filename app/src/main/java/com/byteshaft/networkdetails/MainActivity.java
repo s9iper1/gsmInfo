@@ -28,7 +28,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         startService(new Intent(getApplicationContext(), NetworkService.class));
         clickMe.setOnClickListener(this);
         AlarmHelpers alarmHelpers = new AlarmHelpers();
-        alarmHelpers.setAlarmForDetails();
+//        alarmHelpers.setAlarmForDetails();
     }
 
     @Override

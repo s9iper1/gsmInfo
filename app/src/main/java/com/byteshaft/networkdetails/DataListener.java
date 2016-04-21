@@ -5,13 +5,11 @@ import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
-/**
- * Created by s9iper1 on 4/20/16.
- */
 public class DataListener extends PhoneStateListener {
 
     private Context mContext;
     private String LOG_TAG = "LOG";
+    private boolean dataState = false;
 
     public DataListener(Context context) {
         mContext = context;
@@ -22,12 +20,20 @@ public class DataListener extends PhoneStateListener {
         super.onDataConnectionStateChanged(state, networkType);
         switch (state) {
             case TelephonyManager.DATA_DISCONNECTED:
+                AppGlobals.CURRENT_STATE = AppGlobals.suspend;
+                if (NetworkService.getInstance() != null) {
+                    if (dataState) {
+                        NetworkService.getInstance().getNetworkDetails();
+                        dataState = false;
+                    }
+                }
                 Log.i(LOG_TAG, "onDataConnectionStateChanged: DATA_DISCONNECTED");
                 break;
             case TelephonyManager.DATA_CONNECTING:
                 Log.i(LOG_TAG, "onDataConnectionStateChanged: DATA_CONNECTING");
                 break;
             case TelephonyManager.DATA_CONNECTED:
+                dataState = true;
                 Log.i(LOG_TAG, "onDataConnectionStateChanged: DATA_CONNECTED");
                 break;
             case TelephonyManager.DATA_SUSPENDED:

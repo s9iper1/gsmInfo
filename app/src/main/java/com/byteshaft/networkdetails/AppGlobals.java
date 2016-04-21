@@ -11,6 +11,7 @@ public class AppGlobals  extends Application {
     public static String call_dropped = "CALL_DROPPED";
     public static String suspend = "DATA_SUSPEND";
     public static final String KEY = "hash_set";
+    public static String LOCATION = "";
     public static boolean SCHEDULE_STATE = false;
 
     @Override

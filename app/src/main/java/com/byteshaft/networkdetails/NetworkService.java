@@ -3,10 +3,11 @@ package com.byteshaft.networkdetails;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
+import android.location.Location;
 import android.os.AsyncTask;
+import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
-import android.telecom.TelecomManager;
 import android.telephony.CellInfo;
 import android.telephony.CellLocation;
 import android.telephony.PhoneStateListener;
@@ -15,6 +16,12 @@ import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.widget.Toast;
+
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationServices;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -27,7 +34,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class NetworkService extends Service {
+public class NetworkService extends Service implements LocationListener,
+        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
     public static final String TAG = NetworkService.class.getSimpleName();
     private CellLocation mCellLocation;
@@ -39,6 +47,13 @@ public class NetworkService extends Service {
     private final String COMMA = ",";
     private static NetworkService sInstance;
     private AlarmHelpers alarmHelpers;
+    private GoogleApiClient mGoogleApiClient;
+    private android.location.Location mLocation;
+    private int mLocationRecursionCounter;
+    private int mLocationChangedCounter;
+    private LocationRequest mLocationRequest;
+    private Handler mHandler;
+    private boolean locationCannotBeAcquired = false;
 
     public static NetworkService getInstance() {
         return sInstance;
@@ -50,17 +65,12 @@ public class NetworkService extends Service {
         alarmHelpers = new AlarmHelpers();
         sendBroadcast(new Intent("com.byteshaft.gsmDetails"));
         mManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-        DropReceiver dropReceiver = new DropReceiver();
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(TelecomManager.EXTRA_CALL_DISCONNECT_CAUSE);
-        intentFilter.addAction(TelecomManager.EXTRA_CALL_DISCONNECT_MESSAGE);
-        registerReceiver(dropReceiver, intentFilter);
         return START_STICKY;
     }
 
     public void getNetworkDetails() {
         mManager.listen(mListener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS |
-                        PhoneStateListener.LISTEN_CELL_LOCATION);
+                PhoneStateListener.LISTEN_CELL_LOCATION);
     }
 
     @Override
@@ -111,15 +121,15 @@ public class NetworkService extends Service {
     private class ReflectionTask extends AsyncTask<Void, Void, Void> {
 
         protected Void doInBackground(Void... mVoid) {
-            TelephonyManager telephonyManager = (TelephonyManager)getSystemService(Context.TELEPHONY_SERVICE);
-            String imei =  telephonyManager.getDeviceId();
-            mTextStr = AppGlobals.CURRENT_STATE + COMMA + telephonyManager.getSubscriberId()+
-                    COMMA + imei + COMMA + telephonyManager.getSimSerialNumber() +COMMA + Helpers.getTimeStamp()
-                    + COMMA + mManager.getNetworkOperatorName()+ COMMA + ReflectionUtils.dumpClass(SignalStrength.class,
+            TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+            String imei = telephonyManager.getDeviceId();
+            mTextStr = AppGlobals.CURRENT_STATE + COMMA + telephonyManager.getSubscriberId() +
+                    COMMA + imei + COMMA + telephonyManager.getSimSerialNumber() + COMMA + Helpers.getTimeStamp()
+                    + COMMA + mManager.getNetworkOperatorName() + COMMA +AppGlobals.LOCATION +COMMA + ReflectionUtils.dumpClass(SignalStrength.class,
                     mSignalStrength) +
                     ReflectionUtils.dumpClass(mCellLocation.getClass(), mCellLocation) + SPACE
                     + getWimaxDump();
-            Log.i("TAG" , mTextStr);
+            Log.i("TAG", mTextStr);
             return null;
         }
 
@@ -143,7 +153,7 @@ public class NetworkService extends Service {
             set.add(date);
             Helpers.saveHashSet(set);
             if (AppGlobals.SCHEDULE_STATE) {
-                    new UploadDataTask().execute();
+                new UploadDataTask().execute();
 
             }
 
@@ -213,10 +223,10 @@ public class NetworkService extends Service {
                     connection.setRequestProperty("Content-Type", "application/json");
                     connection.setRequestMethod("POST");
                     Set<String> strings = Helpers.getHashSet();
-                    for (String singleGsm: strings) {
+                    for (String singleGsm : strings) {
                         String gsmData = Helpers.getGsmDetails(singleGsm);
                         String jsonFormattedData = getJsonObjectString(gsmData);
-                        Log.i("TAG" , jsonFormattedData);
+                        Log.i("TAG", jsonFormattedData);
                         sendRequestData(connection, jsonFormattedData);
                         strings.remove(singleGsm);
                     }
@@ -240,17 +250,139 @@ public class NetworkService extends Service {
             super.onPostExecute(integer);
             System.out.println(mTextStr);
             mTextStr = "";
-            Log.i("TAG", " "+integer);
+            Log.i("TAG", " " + integer);
             if (integer == HttpURLConnection.HTTP_OK) {
                 Toast.makeText(getApplicationContext(), "success", Toast.LENGTH_SHORT).show();
             } else {
                 Toast.makeText(getApplicationContext(), "error with code " + integer,
                         Toast.LENGTH_SHORT).show();
             }
-            alarmHelpers.setAlarmForDetails();
+//            alarmHelpers.setAlarmForDetails();
         }
     }
 
+    private Runnable mLocationRunnable = new Runnable() {
+        @Override
+        public void run() {
+            String LOG_TAG = "Location";
+            if (mLocation == null && mLocationRecursionCounter > 24) {
+                mLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+                if (mLocation != null) {
+                    Log.w(LOG_TAG, "Failed to get location current location, saving last known location");
+                    locationCannotBeAcquired = true;
+                    stopLocationUpdate();
+                } else {
+                    Log.e(LOG_TAG, "Failed to get location");
+                    locationCannotBeAcquired = true;
+                    stopLocationUpdate();
+                }
+            } else if (mLocation == null) {
+                acquireLocation();
+                mLocationRecursionCounter++;
+                Log.i(LOG_TAG, "Tracker Thread Running: " + mLocationRecursionCounter);
+            } else {
+                stopLocationUpdate();
+            }
+            if (locationCannotBeAcquired) {
+                getNetworkDetails();
+            }
+        }
+    };
 
+    public void startLocationUpdate() {
+        Log.i("TAG", "update");
+        connectGoogleApiClient();
+    }
+
+    private void stopLocationUpdate() {
+        reset();
+    }
+
+    private void reset() {
+        mLocationChangedCounter = 0;
+        mLocationRecursionCounter = 0;
+        if (mGoogleApiClient.isConnected()) {
+            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+            mGoogleApiClient.disconnect();
+        }
+        mLocation = null;
+    }
+
+    public Handler getHandler() {
+        if (mHandler == null) {
+            mHandler = new Handler();
+        }
+        return mHandler;
+    }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        Log.i("TAG", "connected");
+        startLocationUpdates();
+        acquireLocation();
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onLocationChanged(android.location.Location location) {
+        mLocationChangedCounter++;
+        System.out.println(mLocationChangedCounter);
+        if (mLocationChangedCounter == 3) {
+            mLocation = location;
+            AppGlobals.LOCATION = "Lat " + getLatitudeAsString(location) + ",Long " + getLongitudeAsString(location);
+            getHandler().removeCallbacks(mLocationRunnable);
+            reset();
+            getNetworkDetails();
+        }
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+
+    }
+
+    private void connectGoogleApiClient() {
+        mGoogleApiClient = new GoogleApiClient.Builder(AppGlobals.getContext())
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API)
+                .build();
+        mGoogleApiClient.connect();
+    }
+
+    private void startLocationUpdates() {
+        LocationRequest locationRequest = getLocationRequest();
+        LocationServices.FusedLocationApi.requestLocationUpdates(
+                mGoogleApiClient, locationRequest, this);
+    }
+
+    public static String getLongitudeAsString(Location location) {
+        return String.valueOf(location.getLongitude());
+    }
+
+    public static String getLatitudeAsString(Location location) {
+        return String.valueOf(location.getLatitude());
+    }
+
+    private void acquireLocation() {
+        Handler handler = getHandler();
+        handler.postDelayed(mLocationRunnable, 800);
+    }
+
+    public LocationRequest getLocationRequest() {
+        long INTERVAL = 0;
+        long FASTEST_INTERVAL = 0;
+        if (mLocationRequest == null) {
+            mLocationRequest = new LocationRequest();
+            mLocationRequest.setInterval(INTERVAL);
+            mLocationRequest.setFastestInterval(FASTEST_INTERVAL);
+            mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        }
+        return mLocationRequest;
+    }
 }
 

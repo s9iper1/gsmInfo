@@ -12,7 +12,8 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_WIMAX_STATE" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" android:required="false" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:required="false" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
 
     <application
         android:name=".AppGlobals"
@@ -29,16 +30,16 @@
             </intent-filter>
         </activity>
         <service android:name=".NetworkService" android:enabled="true"/>
-        <receiver android:name=".DropReceiver">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
         <receiver
             android:name=".GsmReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.byteshaft.gsmDetails"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".IncomingCallListener" android:enabled="true">
+            <intent-filter>
+                <action  android:name="android.intent.action.PHONE_STATE" />
             </intent-filter>
         </receiver>
     </application>
