@@ -10,6 +10,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.telephony.CellInfo;
 import android.telephony.CellLocation;
+import android.telephony.NeighboringCellInfo;
 import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
 import android.telephony.SignalStrength;
@@ -29,7 +30,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -54,6 +54,9 @@ public class NetworkService extends Service implements LocationListener,
     private LocationRequest mLocationRequest;
     private Handler mHandler;
     private boolean locationCannotBeAcquired = false;
+    private String neighbouringInfo = "";
+    private String SERVICE_STATE = "";
+    private TelephonyManager dataManager;
 
     public static NetworkService getInstance() {
         return sInstance;
@@ -62,16 +65,23 @@ public class NetworkService extends Service implements LocationListener,
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         sInstance = this;
+        dataManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        dataManager.listen(new DataListener(this),
+                PhoneStateListener.LISTEN_DATA_CONNECTION_STATE | PhoneStateListener.LISTEN_DATA_ACTIVITY);
         alarmHelpers = new AlarmHelpers();
-        sendBroadcast(new Intent("com.byteshaft.gsmDetails"));
+        if ( intent != null && intent.getExtras() != null && intent.getBooleanExtra(AppGlobals.SEND_BROAD_CAST, false)) {
+            sendBroadcast(new Intent("com.byteshaft.gsmDetails"));
+        }
         mManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         return START_STICKY;
     }
 
     public void getNetworkDetails() {
         mManager.listen(mListener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS |
-                PhoneStateListener.LISTEN_CELL_LOCATION);
+                PhoneStateListener.LISTEN_CELL_LOCATION | PhoneStateListener.LISTEN_SERVICE_STATE);
     }
+
+
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -84,20 +94,30 @@ public class NetworkService extends Service implements LocationListener,
         @Override
         public void onCellInfoChanged(List<CellInfo> cellInfo) {
             super.onCellInfoChanged(cellInfo);
-            System.out.println(Arrays.toString(cellInfo.toArray()));
         }
 
         @Override
         public void onServiceStateChanged(ServiceState serviceState) {
             super.onServiceStateChanged(serviceState);
-            System.out.println(serviceState.toString());
-        }
-
-        @Override
-        public void onCallStateChanged(int state, String incomingNumber) {
-            super.onCallStateChanged(state, incomingNumber);
-            System.out.println(state);
-
+            SERVICE_STATE = "";
+            switch (serviceState.getState()) {
+                case ServiceState.STATE_EMERGENCY_ONLY:
+                    SERVICE_STATE = "EMERGENCY_ONLY";
+                    break;
+                case ServiceState.STATE_IN_SERVICE:
+                    SERVICE_STATE = "IN_SERVICE";
+                    break;
+                case ServiceState.STATE_OUT_OF_SERVICE:
+                    SERVICE_STATE = "OUT_OF_SERVICE";
+                    break;
+                case ServiceState.STATE_POWER_OFF:
+                    SERVICE_STATE = "POWER_OFF";
+                    break;
+                default:
+                    SERVICE_STATE = "Unknown";
+                    break;
+            }
+            Log.i("STATE", SERVICE_STATE);
         }
 
         @Override
@@ -121,15 +141,25 @@ public class NetworkService extends Service implements LocationListener,
     private class ReflectionTask extends AsyncTask<Void, Void, Void> {
 
         protected Void doInBackground(Void... mVoid) {
-            TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-            String imei = telephonyManager.getDeviceId();
-            mTextStr = AppGlobals.CURRENT_STATE + COMMA + telephonyManager.getSubscriberId() +
-                    COMMA + imei + COMMA + telephonyManager.getSimSerialNumber() + COMMA + Helpers.getTimeStamp()
-                    + COMMA + mManager.getNetworkOperatorName() + COMMA +AppGlobals.LOCATION +COMMA + ReflectionUtils.dumpClass(SignalStrength.class,
+            List<NeighboringCellInfo> infoList = mManager.getNeighboringCellInfo();
+            System.out.println(infoList);
+            for (NeighboringCellInfo info : infoList) {
+                neighbouringInfo = info.getCid()+ COMMA +info.getLac()+ COMMA + info.getPsc()+ COMMA
+                        +info.getNetworkType() + COMMA +
+                        info.getRssi() + " ";
+
+            }
+            String imei = mManager.getDeviceId();
+            mTextStr = AppGlobals.CURRENT_STATE + COMMA + mManager.getSubscriberId() +
+                    COMMA + imei + COMMA + mManager.getSimSerialNumber() + COMMA + Helpers.getTimeStamp()
+                    + COMMA + mManager.getNetworkOperatorName() + COMMA + AppGlobals.LOCATION + COMMA
+                    +SERVICE_STATE + COMMA + ReflectionUtils.dumpClass(SignalStrength.class,
                     mSignalStrength) +
                     ReflectionUtils.dumpClass(mCellLocation.getClass(), mCellLocation) + SPACE
-                    + getWimaxDump();
+                    + getWimaxDump() + neighbouringInfo;
             Log.i("TAG", mTextStr);
+            System.out.println(neighbouringInfo == null);
+            Log.i("INFO",  "this" +String.valueOf(neighbouringInfo));
             return null;
         }
 
@@ -196,11 +226,11 @@ public class NetworkService extends Service implements LocationListener,
         OutputStream os = connection.getOutputStream();
         os.write(outputInBytes);
         os.close();
-        System.out.println("tag" + connection.getResponseCode() + "" + connection.getResponseMessage());
+        System.out.println("TAG " + connection.getResponseCode() + "" + connection.getResponseMessage());
     }
 
     private static String getJsonObjectString(String data) {
-        return String.format("{\"scriptName\": \"%s\"}", data);
+        return String.format("%s", data);
     }
 
     class UploadDataTask extends AsyncTask<String, String, Integer> {

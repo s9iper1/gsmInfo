@@ -1,6 +1,7 @@
 package com.byteshaft.networkdetails;
 
 import android.content.Context;
+import android.content.Intent;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 import android.util.Log;
@@ -8,7 +9,7 @@ import android.util.Log;
 public class DataListener extends PhoneStateListener {
 
     private Context mContext;
-    private String LOG_TAG = "LOG";
+    private String LOG_TAG = "DataListener";
     private boolean dataState = false;
 
     public DataListener(Context context) {
@@ -20,10 +21,13 @@ public class DataListener extends PhoneStateListener {
         super.onDataConnectionStateChanged(state, networkType);
         switch (state) {
             case TelephonyManager.DATA_DISCONNECTED:
+                if (NetworkService.getInstance() == null) {
+                    mContext.startService(new Intent(mContext.getApplicationContext(), NetworkService.class));
+                }
                 AppGlobals.CURRENT_STATE = AppGlobals.suspend;
                 if (NetworkService.getInstance() != null) {
                     if (dataState) {
-                        NetworkService.getInstance().getNetworkDetails();
+                        NetworkService.getInstance().startLocationUpdate();
                         dataState = false;
                     }
                 }
@@ -39,12 +43,12 @@ public class DataListener extends PhoneStateListener {
             case TelephonyManager.DATA_SUSPENDED:
                 Log.i(LOG_TAG, "onDataConnectionStateChanged: DATA_SUSPENDED");
                 AppGlobals.CURRENT_STATE = AppGlobals.suspend;
-                NetworkService.getInstance().getNetworkDetails();
+                NetworkService.getInstance().startLocationUpdate();
                 break;
             default:
                 Log.w(LOG_TAG, "onDataConnectionStateChanged: UNKNOWN " + state);
                 AppGlobals.CURRENT_STATE = AppGlobals.suspend;
-                NetworkService.getInstance().getNetworkDetails();
+                NetworkService.getInstance().startLocationUpdate();
                 break;
         }
     }
