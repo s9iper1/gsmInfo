@@ -157,6 +157,7 @@ public class NetworkService extends Service implements LocationListener,
                     mSignalStrength) +
                     ReflectionUtils.dumpClass(mCellLocation.getClass(), mCellLocation) + SPACE
                     + getWimaxDump() + neighbouringInfo;
+            mTextStr = mTextStr.replace("[-1,-1,-1]", "[-1|-1|-1]");
             Log.i("TAG", mTextStr);
             System.out.println(neighbouringInfo == null);
             Log.i("INFO",  "this" +String.valueOf(neighbouringInfo));
@@ -243,7 +244,6 @@ public class NetworkService extends Service implements LocationListener,
 
         @Override
         protected Integer doInBackground(String... params) {
-            System.out.println(mTextStr);
             int response = 0;
             if (Helpers.isNetworkAvailable() && Helpers.isInternetWorking()) {
                 URL url;
