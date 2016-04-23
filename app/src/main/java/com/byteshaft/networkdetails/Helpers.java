@@ -8,7 +8,6 @@ import android.net.NetworkInfo;
 import android.preference.PreferenceManager;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
@@ -47,35 +46,6 @@ public class Helpers {
         simpleDateFormat.setTimeZone(TimeZone.getDefault());
         return simpleDateFormat.format(calendar.getTime());
     }
-
-    public static String get(Context context, String key) {
-        String ret;
-
-        try {
-            ClassLoader cl = context.getClassLoader();
-            @SuppressWarnings("rawtypes")
-            Class SystemProperties = cl.loadClass("android.os.SystemProperties");
-
-            //Parameters Types
-            @SuppressWarnings("rawtypes")
-            Class[] paramTypes= new Class[1];
-            paramTypes[0]= String.class;
-
-            Method get = SystemProperties.getMethod("get", paramTypes);
-
-            //Parameters
-            Object[] params = new Object[1];
-            params[0] = new String(key);
-
-            ret = (String) get.invoke(SystemProperties, params);
-        } catch(Exception e) {
-            ret = "";
-            //TODO : Error handling
-        }
-
-        return ret;
-    }
-
     // get default sharedPreferences.
     private static SharedPreferences getPreferenceManager() {
         return PreferenceManager.getDefaultSharedPreferences(AppGlobals.getContext());

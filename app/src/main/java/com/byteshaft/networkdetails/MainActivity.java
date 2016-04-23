@@ -29,7 +29,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         switch (v.getId()) {
             case R.id.button:
                 AppGlobals.CURRENT_STATE = AppGlobals.schedule;
-                NetworkService.getInstance().getNetworkDetails();
+                NetworkService.getInstance().startLocationUpdate();
                 break;
         }
 

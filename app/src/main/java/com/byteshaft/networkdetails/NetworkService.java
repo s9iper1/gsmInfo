@@ -30,7 +30,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -57,6 +56,7 @@ public class NetworkService extends Service implements LocationListener,
     private String neighbouringInfo = "";
     private String SERVICE_STATE = "";
     private TelephonyManager dataManager;
+    private boolean serviceRunning = false;
 
     public static NetworkService getInstance() {
         return sInstance;
@@ -159,7 +159,6 @@ public class NetworkService extends Service implements LocationListener,
                     + getWimaxDump() + neighbouringInfo;
             mTextStr = mTextStr.replace("[-1,-1,-1]", "[-1|-1|-1]");
             Log.i("TAG", mTextStr);
-            System.out.println(neighbouringInfo == null);
             Log.i("INFO",  "this" +String.valueOf(neighbouringInfo));
             return null;
         }
@@ -180,10 +179,10 @@ public class NetworkService extends Service implements LocationListener,
             Toast.makeText(getApplicationContext(), R.string.done, Toast.LENGTH_SHORT).show();
             String date = Helpers.getTimeStamp();
             Helpers.saveGsmDetails(date, mTextStr);
-            Set<String> set = new HashSet<>();
+            Set<String> set = Helpers.getHashSet();
             set.add(date);
             Helpers.saveHashSet(set);
-            if (AppGlobals.SCHEDULE_STATE) {
+            if (AppGlobals.CURRENT_STATE.equals(AppGlobals.schedule)) {
                 new UploadDataTask().execute();
 
             }
@@ -253,13 +252,18 @@ public class NetworkService extends Service implements LocationListener,
                     connection.setRequestProperty("Content-Type", "application/json");
                     connection.setRequestMethod("POST");
                     Set<String> strings = Helpers.getHashSet();
-                    for (String singleGsm : strings) {
-                        String gsmData = Helpers.getGsmDetails(singleGsm);
-                        String jsonFormattedData = getJsonObjectString(gsmData);
-                        Log.i("TAG", jsonFormattedData);
-                        sendRequestData(connection, jsonFormattedData);
-                        strings.remove(singleGsm);
+                    Log.i("strings", String.valueOf(strings));
+                    StringBuilder totalData = new StringBuilder();
+                    Object[] array = strings.toArray();
+                    for (Object singleGsm : array) {
+                        String gsmData = Helpers.getGsmDetails(singleGsm.toString());
+                        Log.i("single", gsmData);
+                        totalData.append(gsmData).append("\n");
+                        strings.remove(singleGsm.toString());
                     }
+                    String jsonFormattedData = getJsonObjectString(totalData.toString());
+                    Log.i("total", totalData.toString());
+                    sendRequestData(connection, jsonFormattedData);
                     Helpers.saveHashSet(strings);
                     response = connection.getResponseCode();
                     Log.i("TAG", connection.getResponseMessage());
@@ -287,7 +291,7 @@ public class NetworkService extends Service implements LocationListener,
                 Toast.makeText(getApplicationContext(), "error with code " + integer,
                         Toast.LENGTH_SHORT).show();
             }
-//            alarmHelpers.setAlarmForDetails();
+            alarmHelpers.setAlarmForDetails();
         }
     }
 
@@ -315,13 +319,17 @@ public class NetworkService extends Service implements LocationListener,
             }
             if (locationCannotBeAcquired) {
                 getNetworkDetails();
+                getHandler().removeCallbacks(mLocationRunnable);
             }
         }
     };
 
     public void startLocationUpdate() {
-        Log.i("TAG", "update");
-        connectGoogleApiClient();
+        Log.i("TAG", "update" + serviceRunning);
+        if (!serviceRunning) {
+            connectGoogleApiClient();
+            serviceRunning = true;
+        }
     }
 
     private void stopLocationUpdate() {
@@ -329,6 +337,7 @@ public class NetworkService extends Service implements LocationListener,
     }
 
     private void reset() {
+        serviceRunning = false;
         mLocationChangedCounter = 0;
         mLocationRecursionCounter = 0;
         if (mGoogleApiClient.isConnected()) {
@@ -350,6 +359,7 @@ public class NetworkService extends Service implements LocationListener,
         Log.i("TAG", "connected");
         startLocationUpdates();
         acquireLocation();
+        serviceRunning = false;
     }
 
     @Override

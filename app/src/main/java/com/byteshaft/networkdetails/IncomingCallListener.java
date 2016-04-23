@@ -9,10 +9,10 @@ import android.util.Log;
 
 public class IncomingCallListener extends BroadcastReceiver {
 
-    private boolean inCommingCall = false;
+    private boolean inComingCall = false;
     private boolean outGoingCall = false;
     private boolean calledAttended = false;
-
+    private boolean calledOnce = false;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -37,27 +37,30 @@ public class IncomingCallListener extends BroadcastReceiver {
             super.onCallStateChanged(state, incomingNumber);
             switch (state) {
                 case TelephonyManager.CALL_STATE_RINGING:
-                    inCommingCall = true;
+                    inComingCall = true;
                     Log.i("Ringing: ", "New Phone Call Event. Incomming Number : " + incomingNumber);
                     break;
                 case TelephonyManager.CALL_STATE_OFFHOOK:
-                    if (inCommingCall) {
+                    if (inComingCall) {
                         calledAttended = true;
                     }
                     outGoingCall = true;
                     Log.i("OFFHOOK: ", "New Phone Call Event. Incomming Number : " + incomingNumber);
                     break;
                 case TelephonyManager.CALL_STATE_IDLE:
-                    if (inCommingCall && calledAttended || outGoingCall) {
+                    if (inComingCall && calledAttended || outGoingCall) {
                         if (NetworkService.getInstance() != null) {
-                            AppGlobals.CURRENT_STATE = AppGlobals.call_dropped;
-                            NetworkService.getInstance().startLocationUpdate();
-                            inCommingCall = false;
-                            outGoingCall = false;
-                            calledAttended = false;
+                            if (!calledOnce) {
+                                calledOnce = true;
+                                Log.i("IDLE: ", "state idle ");
+                                AppGlobals.CURRENT_STATE = AppGlobals.call_dropped;
+                                NetworkService.getInstance().startLocationUpdate();
+                                inComingCall = false;
+                                outGoingCall = false;
+                                calledAttended = false;
+                            }
                         }
                     }
-                    Log.i("IDLE: ", "state idle ");
                     break;
             }
         }
