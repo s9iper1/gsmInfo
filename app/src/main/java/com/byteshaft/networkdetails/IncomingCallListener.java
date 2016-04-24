@@ -26,7 +26,7 @@ public class IncomingCallListener extends BroadcastReceiver {
         MyPhoneStateListener PhoneListener = new MyPhoneStateListener();
 
         // Register listener for LISTEN_CALL_STATE
-        tmgr.listen(PhoneListener, PhoneStateListener.LISTEN_CALL_STATE);
+//        tmgr.listen(PhoneListener, PhoneStateListener.LISTEN_CALL_STATE);
     }
 
 

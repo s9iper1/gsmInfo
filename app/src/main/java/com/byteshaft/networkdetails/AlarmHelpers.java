@@ -12,19 +12,19 @@ import java.util.concurrent.TimeUnit;
 
 public class AlarmHelpers {
 
-    AlarmManager mAlarmManager;
-    PendingIntent mPendingIntent;
+    private static AlarmManager mAlarmManager;
+    private static PendingIntent mPendingIntent;
 
-    public void setAlarmForDetails() {
+    public static void setAlarmForDetails() {
         mAlarmManager = getAlarmManager(AppGlobals.getContext());
         final int ONE_SECOND = 1000;
         final int ONE_MINUTE = ONE_SECOND * 60;
         final int TEN_MINUTES = ONE_MINUTE * 10;
         final int THIRTY_MINUTES= TEN_MINUTES * 3;
-        setAlarm(ONE_MINUTE);
+        setAlarm(THIRTY_MINUTES);
     }
 
-    private void setAlarm(long time) {
+    private static void setAlarm(long time) {
         Log.i("Alarm",
                 String.format("Setting alarm for: %d", TimeUnit.MILLISECONDS.toMinutes(time)));
         Intent intent = new Intent("com.byteshaft.gsmDetails");
@@ -33,7 +33,7 @@ public class AlarmHelpers {
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, SystemClock.elapsedRealtime() + time, mPendingIntent);
     }
 
-    private AlarmManager getAlarmManager(Context context) {
+    private static AlarmManager getAlarmManager(Context context) {
         return (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
     }
 }

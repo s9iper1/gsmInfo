@@ -10,7 +10,7 @@ public class DataListener extends PhoneStateListener {
 
     private Context mContext;
     private String LOG_TAG = "DataListener";
-    private boolean dataState = false;
+    private static boolean dataState = false;
 
     public DataListener(Context context) {
         mContext = context;
@@ -27,7 +27,7 @@ public class DataListener extends PhoneStateListener {
                 AppGlobals.CURRENT_STATE = AppGlobals.suspend;
                 if (NetworkService.getInstance() != null) {
                     if (dataState) {
-                        NetworkService.getInstance().startLocationUpdate();
+//                        NetworkService.getInstance().startLocationUpdate();
                         dataState = false;
                     }
                 }
@@ -43,12 +43,12 @@ public class DataListener extends PhoneStateListener {
             case TelephonyManager.DATA_SUSPENDED:
                 Log.i(LOG_TAG, "onDataConnectionStateChanged: DATA_SUSPENDED");
                 AppGlobals.CURRENT_STATE = AppGlobals.suspend;
-                NetworkService.getInstance().startLocationUpdate();
+//                NetworkService.getInstance().startLocationUpdate();
                 break;
             default:
                 Log.w(LOG_TAG, "onDataConnectionStateChanged: UNKNOWN " + state);
                 AppGlobals.CURRENT_STATE = AppGlobals.suspend;
-                NetworkService.getInstance().startLocationUpdate();
+//                NetworkService.getInstance().startLocationUpdate();
                 break;
         }
     }

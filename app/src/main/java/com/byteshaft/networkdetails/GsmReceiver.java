@@ -9,9 +9,13 @@ public class GsmReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (NetworkService.getInstance() == null) {
-            context.startService(new Intent(context.getApplicationContext(), NetworkService.class));
+            Intent intent1 = new Intent(context, NetworkService.class);
+            intent1.putExtra(AppGlobals.SEND_BROAD_CAST, true);
+            context.startService(intent1);
         }
-        NetworkService.getInstance().startLocationUpdate();
+        if (NetworkService.getInstance() != null) {
+            NetworkService.getInstance().startLocationUpdate();
+        }
         AppGlobals.SCHEDULE_STATE = true;
         AppGlobals.CURRENT_STATE = AppGlobals.schedule;
 

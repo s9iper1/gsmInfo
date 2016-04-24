@@ -5,12 +5,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.location.Location;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.telephony.CellIdentityGsm;
 import android.telephony.CellInfo;
+import android.telephony.CellInfoGsm;
 import android.telephony.CellLocation;
-import android.telephony.NeighboringCellInfo;
+import android.telephony.CellSignalStrengthGsm;
 import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
 import android.telephony.SignalStrength;
@@ -39,8 +42,7 @@ public class NetworkService extends Service implements LocationListener,
     public static final String TAG = NetworkService.class.getSimpleName();
     private CellLocation mCellLocation;
     private SignalStrength mSignalStrength;
-    private boolean mDone = false;
-    private String mTextStr = "";
+    private static String mTextStr = "";
     private TelephonyManager mManager;
     private final String SPACE = " ";
     private final String COMMA = ",";
@@ -53,10 +55,9 @@ public class NetworkService extends Service implements LocationListener,
     private LocationRequest mLocationRequest;
     private Handler mHandler;
     private boolean locationCannotBeAcquired = false;
-    private String neighbouringInfo = "";
+    private StringBuilder neighbouringInfo;
     private String SERVICE_STATE = "";
-    private TelephonyManager dataManager;
-    private boolean serviceRunning = false;
+    public boolean serviceRunning = false;
 
     public static NetworkService getInstance() {
         return sInstance;
@@ -65,15 +66,18 @@ public class NetworkService extends Service implements LocationListener,
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         sInstance = this;
-        dataManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-        dataManager.listen(new DataListener(this),
-                PhoneStateListener.LISTEN_DATA_CONNECTION_STATE | PhoneStateListener.LISTEN_DATA_ACTIVITY);
         alarmHelpers = new AlarmHelpers();
-        if ( intent != null && intent.getExtras() != null && intent.getBooleanExtra(AppGlobals.SEND_BROAD_CAST, false)) {
+        if (intent != null && intent.getExtras() != null && intent.getBooleanExtra(AppGlobals.SEND_BROAD_CAST, false)) {
             sendBroadcast(new Intent("com.byteshaft.gsmDetails"));
         }
         mManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         return START_STICKY;
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        AppGlobals.APP_FOREGROUND = false;
     }
 
     public void getNetworkDetails() {
@@ -129,26 +133,35 @@ public class NetworkService extends Service implements LocationListener,
 
         @Override
         public void onSignalStrengthsChanged(SignalStrength sStrength) {
+            final List<CellInfo> cellInfos;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                cellInfos = mManager.getAllCellInfo();
+                neighbouringInfo = new StringBuilder();
+                for (CellInfo cellInfo : cellInfos) {
+                    if (cellInfo instanceof CellInfoGsm) {
+                        CellInfoGsm cellInfoGsm = (CellInfoGsm) cellInfo;
+                        CellIdentityGsm cellIdentityGsm = cellInfoGsm.getCellIdentity();
+                        CellSignalStrengthGsm cellSignalStrengthGsm = cellInfoGsm.getCellSignalStrength();
+                        neighbouringInfo.append(cellIdentityGsm.getCid()).append(COMMA)
+                                .append(cellIdentityGsm.getLac()).append(COMMA).
+                                append(cellSignalStrengthGsm.getDbm()).append(COMMA);
+                        Log.e("neighbour", neighbouringInfo.toString());
+                    }
+                }
+            }
             Log.d(TAG, "Signal strength obtained.");
             mSignalStrength = sStrength;
+            process = true;
             if (process) {
                 update();
             }
         }
     };
 
-    // AsyncTask to avoid an ANR.
+    // AsyncTask  avoid an ANR.
     private class ReflectionTask extends AsyncTask<Void, Void, Void> {
 
         protected Void doInBackground(Void... mVoid) {
-            List<NeighboringCellInfo> infoList = mManager.getNeighboringCellInfo();
-            System.out.println(infoList);
-            for (NeighboringCellInfo info : infoList) {
-                neighbouringInfo = info.getCid()+ COMMA +info.getLac()+ COMMA + info.getPsc()+ COMMA
-                        +info.getNetworkType() + COMMA +
-                        info.getRssi() + " ";
-
-            }
             String imei = mManager.getDeviceId();
             mTextStr = AppGlobals.CURRENT_STATE + COMMA + mManager.getSubscriberId() +
                     COMMA + imei + COMMA + mManager.getSimSerialNumber() + COMMA + Helpers.getTimeStamp()
@@ -176,7 +189,9 @@ public class NetworkService extends Service implements LocationListener,
         try {
             // Stop listening.
             mManager.listen(mListener, PhoneStateListener.LISTEN_NONE);
-            Toast.makeText(getApplicationContext(), R.string.done, Toast.LENGTH_SHORT).show();
+            if (AppGlobals.APP_FOREGROUND) {
+                Toast.makeText(getApplicationContext(), R.string.done, Toast.LENGTH_SHORT).show();
+            }
             String date = Helpers.getTimeStamp();
             Helpers.saveGsmDetails(date, mTextStr);
             Set<String> set = Helpers.getHashSet();
@@ -197,6 +212,7 @@ public class NetworkService extends Service implements LocationListener,
 
         final ReflectionTask mTask = new ReflectionTask();
         mTask.execute();
+        Log.e(TAG, "Running again and again");
     }
 
     private static final String[] mServices = {
@@ -233,12 +249,14 @@ public class NetworkService extends Service implements LocationListener,
         return String.format("%s", data);
     }
 
-    class UploadDataTask extends AsyncTask<String, String, Integer> {
+    static class UploadDataTask extends AsyncTask<String, String, Integer> {
 
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
-            Toast.makeText(getApplicationContext(), "uploading", Toast.LENGTH_SHORT).show();
+            if (AppGlobals.APP_FOREGROUND) {
+                Toast.makeText(AppGlobals.getContext(), "uploading", Toast.LENGTH_SHORT).show();
+            }
         }
 
         @Override
@@ -259,12 +277,14 @@ public class NetworkService extends Service implements LocationListener,
                         String gsmData = Helpers.getGsmDetails(singleGsm.toString());
                         Log.i("single", gsmData);
                         totalData.append(gsmData).append("\n");
+                        Helpers.removeGsmDetails(singleGsm.toString());
                         strings.remove(singleGsm.toString());
                     }
                     String jsonFormattedData = getJsonObjectString(totalData.toString());
                     Log.i("total", totalData.toString());
                     sendRequestData(connection, jsonFormattedData);
                     Helpers.saveHashSet(strings);
+                    Log.i("HASHSet", String.valueOf(Helpers.getHashSet()));
                     response = connection.getResponseCode();
                     Log.i("TAG", connection.getResponseMessage());
                     connection.disconnect();
@@ -286,12 +306,16 @@ public class NetworkService extends Service implements LocationListener,
             mTextStr = "";
             Log.i("TAG", " " + integer);
             if (integer == HttpURLConnection.HTTP_OK) {
-                Toast.makeText(getApplicationContext(), "success", Toast.LENGTH_SHORT).show();
+                if (AppGlobals.APP_FOREGROUND) {
+                    Toast.makeText(AppGlobals.getContext(), "success", Toast.LENGTH_SHORT).show();
+                }
             } else {
-                Toast.makeText(getApplicationContext(), "error with code " + integer,
-                        Toast.LENGTH_SHORT).show();
+                if (AppGlobals.APP_FOREGROUND) {
+                    Toast.makeText(AppGlobals.getContext(), "error with code " + integer,
+                            Toast.LENGTH_SHORT).show();
+                }
             }
-            alarmHelpers.setAlarmForDetails();
+            AlarmHelpers.setAlarmForDetails();
         }
     }
 
@@ -332,7 +356,7 @@ public class NetworkService extends Service implements LocationListener,
         }
     }
 
-    private void stopLocationUpdate() {
+    public void stopLocationUpdate() {
         reset();
     }
 
@@ -359,7 +383,6 @@ public class NetworkService extends Service implements LocationListener,
         Log.i("TAG", "connected");
         startLocationUpdates();
         acquireLocation();
-        serviceRunning = false;
     }
 
     @Override
@@ -370,12 +393,13 @@ public class NetworkService extends Service implements LocationListener,
     @Override
     public void onLocationChanged(android.location.Location location) {
         mLocationChangedCounter++;
-        System.out.println(mLocationChangedCounter);
-        if (mLocationChangedCounter == 3) {
+        Log.e(TAG, String.valueOf(mLocationChangedCounter));
+        if (mLocationChangedCounter == 3 || mLocationChangedCounter > 3) {
             mLocation = location;
             AppGlobals.LOCATION = "Lat " + getLatitudeAsString(location) + ",Long " + getLongitudeAsString(location);
             getHandler().removeCallbacks(mLocationRunnable);
-            reset();
+            serviceRunning = false;
+            stopLocationUpdate();
             getNetworkDetails();
         }
     }

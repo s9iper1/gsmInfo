@@ -14,6 +14,7 @@ public class AppGlobals  extends Application {
     public static String LOCATION = "null";
     public static boolean SCHEDULE_STATE = false;
     public static final String SEND_BROAD_CAST = "send_broad_cast";
+    public static boolean APP_FOREGROUND = false;
 
     @Override
     public void onCreate() {
